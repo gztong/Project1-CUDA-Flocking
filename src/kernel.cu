@@ -393,7 +393,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   int index = (blockIdx.x * blockDim.x) + threadIdx.x + 1;
   if( index >= N ) return;
 
-  glm::vec3 index3D = (int)((pos[index] + gridMin) * inverseCellWidth + 0.5);
+	glm::vec3 index3D = (pos[index] + gridMin) * inverseCellWidth + glm::vec3(0.5);
 
     glm::vec3 center_perceived;
     glm::vec3 away;
@@ -404,12 +404,12 @@ __global__ void kernUpdateVelNeighborSearchScattered(
       for(int z=0; z<=1; z++) {
 
           int index1D = gridIndex3Dto1D((int)index3D.x+x, (int)index3D.y+y, (int)index3D.z+z, gridResolution);
-          int startIdx = dev_gridCellStartIndices[index1D];
+          int startIdx = gridCellStartIndices[index1D];
           if( startIdx < 0 ) continue; // The cell doesn't contain objects
-          int endIdx = dev_gridCellEndIndices[index1D];
+          int endIdx = gridCellEndIndices[index1D];
 
     for(int j=startIdx; j<=endIdx; j++) {
-      int particleIdx = dev_particleArrayIndices[j];
+      int particleIdx = particleArrayIndices[j];
       if( index == particleIdx ) continue; // exclude itself
       auto distance_ = glm::distance(pos[index], pos[particleIdx]);
 
@@ -436,7 +436,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     center_perceived /= N-1;
     velocity_perceived /= N-1;
 
-    vel2[i] = (center_perceived - pos[i]) * rule1Scale + away * rule2Scale + velocity_perceived * rule3Scale;
+    vel2[index] = (center_perceived - pos[index]) * rule1Scale + away * rule2Scale + velocity_perceived * rule3Scale;
 
 }
 
@@ -464,9 +464,9 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 */
 void Boids::stepSimulationNaive(float dt) {
   // TODO-1.2 - use the kernels you wrote to step the simulation forward in time.
-  int gridSize = (numObjects+blockSize-1)/blockSize;
-  kernUpdateVelocityBruteForce<<<<<gridSize, blockSize>>>(numObjects, dev_pos, dev_vel1, dev_vel2);
-  kernUpdatePos<<<gridSize, blockSize>>>(numObjects, dev_pos, dev_vel2);
+  dim3 gridSize((numObjects+blockSize-1)/blockSize);
+  kernUpdateVelocityBruteForce<<<gridSize, blockSize>>>(numObjects, dev_pos, dev_vel1, dev_vel2);
+  kernUpdatePos<<<gridSize, dim3(blockSize)>>>(numObjects, dt, dev_pos, dev_vel2);
 
   // TODO-1.2 ping-pong the velocity buffers
   // swap;
@@ -500,13 +500,13 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     dev_pos, 
     dev_particleArrayIndices, 
     dev_particleGridIndices );
-
+  
   // Wrap device vectors in thrust iterators for use with thrust.
-  thrust::device_ptr<int> dev_thrust_keys(gridIndices);
-  thrust::device_ptr<int> dev_thrust_values(indices);
+  thrust::device_ptr<int> dev_thrust_keys(dev_particleGridIndices);
+  thrust::device_ptr<int> dev_thrust_values(dev_particleArrayIndices);
   // LOOK-2.1 Example for using thrust::sort_by_key
   // After sort
-  thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + N, dev_thrust_values);
+  thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + numObjects, dev_thrust_values);
 
   kernResetIntBuffer<<<fullBlocksPerGrid, threadsPerBlock>>>(
     numObjects,
@@ -519,8 +519,8 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     -1);
 
   // Handle edge cases
-  dev_gridCellStartIndices[ dev_particleGridIndices[0] ] = 0;
-  dev_gridCellEndIndices[ dev_particleGridIndices[numObjects-1] ] = numObjects-1;
+  //dev_gridCellStartIndices[ dev_particleGridIndices[0] ] = 0;
+  //dev_gridCellEndIndices[ dev_particleGridIndices[numObjects-1] ] = numObjects-1;
 
 
   kernIdentifyCellStartEnd<<<fullBlocksPerGrid, threadsPerBlock>>>(
@@ -543,7 +543,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     dev_vel1,
     dev_vel2 );
 
-  kernUpdatePos<<<gridSize, blockSize>>>(numObjects, dev_pos, dev_vel2);
+  kernUpdatePos<<<fullBlocksPerGrid, blockSize>>>(numObjects, dt, dev_pos, dev_vel2);
 
 
   // swap;
