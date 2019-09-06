@@ -246,6 +246,9 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
   // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
   // Rule 2: boids try to stay a distance d away from each other
   // Rule 3: boids try to match the speed of surrounding boids
+
+
+
   return glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
@@ -370,8 +373,6 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
     gridCellEndIndices[particleGridIndices[index-1]] = index-1;
     gridCellStartIndices[particleGridIndices[index]] = index;
   }
-  
-
 
 }
 
@@ -393,11 +394,12 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   int index = (blockIdx.x * blockDim.x) + threadIdx.x + 1;
   if( index >= N ) return;
 
-	glm::vec3 index3D = (pos[index] + gridMin) * inverseCellWidth + glm::vec3(0.5);
-
+  glm::vec3 cur_pos = pos[index];
+	glm::vec3 index3D = (cur_pos + gridMin) * inverseCellWidth + glm::vec3(0.5);
     glm::vec3 center_perceived;
     glm::vec3 away;
     glm::vec3 velocity_perceived; 
+
 
   for(int x=0; x<=1; x++) {
     for(int y=0; y<=1; y++) {
@@ -410,17 +412,19 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 
     for(int j=startIdx; j<=endIdx; j++) {
       int particleIdx = particleArrayIndices[j];
-      if( index == particleIdx ) continue; // exclude itself
-      auto distance_ = glm::distance(pos[index], pos[particleIdx]);
+            if( index == particleIdx ) continue; // exclude itself
+
+      glm::vec3 neighborPos = pos[particleIdx];
+      auto distance_ = glm::distance(cur_pos, neighborPos);
 
       // rule 1
       if( distance_ < rule1Distance) {
-          center_perceived += pos[particleIdx];
+          center_perceived += neighborPos;
       }
 
       // rule 2
       if( distance_ < rule2Distance ) {
-          away -= (pos[particleIdx] - pos[index]);
+          away -= (neighborPos - cur_pos);
       }
 
       // rule 3
@@ -436,7 +440,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     center_perceived /= N-1;
     velocity_perceived /= N-1;
 
-    vel2[index] = (center_perceived - pos[index]) * rule1Scale + away * rule2Scale + velocity_perceived * rule3Scale;
+    vel2[index] = (center_perceived - cur_pos) * rule1Scale + away * rule2Scale + velocity_perceived * rule3Scale;
 
 }
 
@@ -544,7 +548,6 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     dev_vel2 );
 
   kernUpdatePos<<<fullBlocksPerGrid, blockSize>>>(numObjects, dt, dev_pos, dev_vel2);
-
 
   // swap;
   auto tmp = dev_vel1;
