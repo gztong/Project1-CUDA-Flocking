@@ -7,7 +7,7 @@
 */
 #include <windows.h> //for create a directory to store performance data
 
-#define AUTOMATION 1
+#define AUTOMATION 0
 
 #if AUTOMATION
 #include "cxxopts.hpp"
@@ -311,7 +311,7 @@ void initShaders(GLuint * program) {
 
     //generate a performance data under the project folder (if hierarchy is project_name\build)
     std::ofstream output;
-    std::string output_folder_name = "..\\PerformanceData";
+    std::string output_folder_name = ".\\Output";
     if (CreateDirectory(output_folder_name.c_str(), NULL) || ERROR_ALREADY_EXISTS == GetLastError())
     {
         std::string file_path = output_folder_name + "\\" + filename.str() + ".txt";
