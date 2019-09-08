@@ -7,15 +7,16 @@
 */
 #include <windows.h> //for create a directory to store performance data
 
-#define AUTOMATION 0
+#define AUTOMATION 1
 
 #if AUTOMATION
 #include "cxxopts.hpp"
 bool b_visualize = false;
 bool b_uniform = false;
 bool b_coherent = false;
-int n_objects = 5000;
+int n_objects = 15000;
 #endif
+int n_blockSize = 256;
 
 #include "main.hpp"
 
@@ -27,7 +28,7 @@ int n_objects = 5000;
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
 #define VISUALIZE 1
 #define UNIFORM_GRID 1
-#define COHERENT_GRID 1
+#define COHERENT_GRID 0
 // LOOK-1.2 - change this to adjust particle count in the simulation
 //we need to modify in automation mode
 int N_FOR_VIS = 5000;
@@ -51,6 +52,7 @@ parse(int argc, char* argv[])
       ("v, visualize", "Use OpenGL to visualize the result", cxxopts::value<bool>(b_visualize))
       ("u, uniform", "Use uniform grid search", cxxopts::value<bool>(b_uniform))
       ("c, coherent", "Use coherent grid search", cxxopts::value<bool>(b_coherent))
+	  ("b, blockSize", "Change BlockSize, must be power of 2", cxxopts::value<int>(n_blockSize))
       ("n, numObjects", "Number of objects", cxxopts::value<int>(n_objects)) ;
 
     auto result = options.parse(argc, argv);
@@ -172,7 +174,7 @@ bool init(int argc, char **argv) {
   cudaGLRegisterBufferObject(boidVBO_velocities);
 
   // Initialize N-body simulation
-  Boids::initSimulation(N_FOR_VIS);
+  Boids::initSimulation(N_FOR_VIS, n_blockSize);
   updateCamera();
 
   initShaders(program);
@@ -290,21 +292,22 @@ void initShaders(GLuint * program) {
 #endif
   }
 
-  void mainLoopAutomation(int numFrames) {
+  void mainLoopAutomation(int numSeconds) {
 #if AUTOMATION
     double fps = 0;
     double timebase = 0;
     int frame = 0;
-    int totalFrames = 0;
+    int timeLapsed = 0;
 
     std::ostringstream filename;
     filename << "numObjects=" << n_objects;
+	filename << "blockSize=" << n_blockSize;
     if(b_uniform && b_coherent )
-      filename <<  " COHERENT_GRID";
+      filename << "COHERENT_GRID";
     else if (b_uniform)
-      filename <<  " UNIFORM_GRID";
+      filename << "UNIFORM_GRID";
     else
-      filename <<  " NAIVE";
+      filename << "NAIVE";
 
     //generate a performance data under the project folder (if hierarchy is project_name\build)
     std::ofstream output;
@@ -323,9 +326,8 @@ void initShaders(GLuint * program) {
         output << filename.str() << "\n-------------------------------------------\n";
     }
 
-    while (!glfwWindowShouldClose(window) && totalFrames < numFrames) {
+    while (!glfwWindowShouldClose(window) && timeLapsed < numSeconds) {
       glfwPollEvents();
-      totalFrames++;
       frame++;
       double time = glfwGetTime();
 
@@ -333,6 +335,7 @@ void initShaders(GLuint * program) {
         fps = frame / (time - timebase);
         timebase = time;
         frame = 0;
+		timeLapsed++;
         output << fps << std::endl;
       }
 
