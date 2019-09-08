@@ -66,7 +66,7 @@ set(headers
     src/glslUtility.hpp
     src/kernel.h
     src/main.hpp
-    cxxopts.hpp
+    src/cxxopts.hpp
     src/utilityCore.hpp
     )
 
