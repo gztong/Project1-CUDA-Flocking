@@ -10,6 +10,9 @@ Project 1 - Flocking**
 ![Screenshot](images/recording.gif)
 ![Screenshot](images/screentshot.png)
 
+####
+cxxopts.hpp added to CMakeList in order to parse command line argument for testing
+
 ## Part 2.2
 Compare the uniform grid velocity update to the naive velocity update, I found that with the increased number of objects, the uniform grid velocity performs better than the naive one. As the diagram suggests, once the number of objects exceeds 10000 in this test setting, uniform grid velocity update is generally faster than the naive one.
 Part of the reason is due to the naive search linearly goes through all other particles to find the neighbours, and the O(n^2) makes it hard to scale.
