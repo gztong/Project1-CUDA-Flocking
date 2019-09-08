@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace Boids {
-    void initSimulation(int N);
+    void initSimulation(int N, int blockSize_ = 128);
     void stepSimulationNaive(float dt);
     void stepSimulationScatteredGrid(float dt);
     void stepSimulationCoherentGrid(float dt);
